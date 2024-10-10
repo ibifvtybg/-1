@@ -11,18 +11,8 @@ import numpy as np
 import pandas as pd
 import shap
 import matplotlib.pyplot as plt
-import os
 
-try:
-    os.chdir(r'C:/Users/18657/Desktop/长工时')
-except FileNotFoundError:
-    print("指定路径不存在，请检查路径是否正确。")
-else:
-    # 加载模型
-    file_path = 'XGBoost.pkl'
-    model = joblib.load(file_path)
-
-    # 后续代码继续在这个路径下执行
+model = joblib.load('XGBoost.pkl')
 
 # 定义特征选项
 cp_options = {
