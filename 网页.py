@@ -13,7 +13,7 @@ import shap
 import matplotlib.pyplot as plt
 
 # 加载模型
-file_path = r"C:/Users/18657/Desktop/长工时/XGBoost.pkl"
+file_path = r"C:\\Users\\18657\\Desktop\\长工时\\XGBoost.pkl"
 model = joblib.load(file_path)
 
 # 定义特征选项
