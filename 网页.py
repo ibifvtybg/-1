@@ -1,20 +1,17 @@
-# -*- coding: utf-8 -*-
-"""
-Spyder Editor
-
-这是一个临时的脚本文件。
-"""
-
 import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
 import shap
 import matplotlib.pyplot as plt
-import xgboost as xgb
+import matplotlib.font_manager as fm
 
 # 加载模型
 model = joblib.load('XGBoost.pkl')
+
+# 获取模型输入特征数量
+model_input_features = model.feature_names_in_
+expected_feature_count = len(model_input_features)
 
 # 定义新的 12 个特征选项及名称
 cp_options = {
@@ -105,9 +102,15 @@ def predict():
         feature_values = [
             age, service_years, A2, A3, A4, A6, B4, B5, working_hours_group, life_satisfaction, sleep_status, work_load
         ]
-        dmatrix = xgb.DMatrix(np.array([feature_values]))
-        predicted_class = model.predict(dmatrix)[0]
-        predicted_proba = model.predict_proba(dmatrix)[0]
+        features = np.array([feature_values])
+        if len(features[0])!= expected_feature_count:
+            # 如果特征数量不匹配，使用零填充来达到模型期望的特征数量
+            padded_features = np.pad(features, ((0, 0), (0, expected_feature_count - len(features[0]))), 'constant')
+            predicted_class = model.predict(padded_features)[0]
+            predicted_proba = model.predict_proba(padded_features)[0]
+        else:
+            predicted_class = model.predict(features)[0]
+            predicted_proba = model.predict_proba(features)[0]
 
         # 显示预测结果
         st.write(f"**预测类别：** {predicted_class}")
@@ -130,21 +133,41 @@ def predict():
 
         st.write(advice)
 
-        # 将 DMatrix 转换为 DataFrame
-        df = pd.DataFrame(dmatrix.get_data().toarray()[0], columns=feature_names)
-
-        # 计算 SHAP 值并显示力图
+        # 进行 SHAP 值计算，不直接使用 DMatrix
+        if len(features[0])!= expected_feature_count:
+            data_df = pd.DataFrame(padded_features[0].reshape(1, -1), columns=model_input_features)
+        else:
+            data_df = pd.DataFrame(features[0].reshape(1, -1), columns=feature_names)
         explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(df)
+        shap_values = explainer.shap_values(data_df)
 
-        shap.force_plot(
-            explainer.expected_value, shap_values[0],
-            df,
-            matplotlib=True
-        )
-        plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
+        # 更加谨慎地处理 expected_value
+        base_value = explainer.expected_value if not isinstance(explainer.expected_value, list) else (explainer.expected_value[0] if len(explainer.expected_value) > 0 else None)
+        if base_value is None:
+            raise ValueError("Unable to determine base value for SHAP force plot.")
 
-        st.image("shap_force_plot.png")
+        try:
+            shap.plots.force(base_value, shap_values[0], data_df)
+            plt.savefig("shap_force_plot.png", bbox_inches='tight', dpi=1200)
+        except Exception as e:
+            print(f"Error in force plot: {e}")
+            # 如果 force plot 失败，尝试其他绘图方法
+            fonts = fm.findSystemFonts(fontpaths=None, fontext='ttf')
+            font_names = [fm.FontProperties(fname=fname).get_name() for fname in fonts]
+            if 'SimHei' in font_names:
+                plt.rcParams['font.sans-serif'] = ['SimHei']
+            elif 'Microsoft YaHei' in font_names:
+                plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+            else:
+                plt.rcParams['font.sans-serif'] = [font_names[0]] if font_names else ['DejaVu Sans']
+            plt.rcParams['axes.unicode_minus'] = False
+            shap.summary_plot(shap_values, data_df, show=False)
+            plt.title('SHAP 值汇总图')
+            plt.xlabel('特征')
+            plt.ylabel('SHAP 值')
+            plt.savefig("shap_summary_plot.png", bbox_inches='tight', dpi=1200)
+
+        st.image("shap_summary_plot.png")
     except Exception as e:
         st.write(f"出现错误：{e}")
 
