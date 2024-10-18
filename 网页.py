@@ -5,6 +5,7 @@ import pandas as pd
 import shap
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
+import xgboost as xgb
 
 # 加载模型
 model = joblib.load('XGBoost.pkl')
@@ -23,6 +24,10 @@ cp_options = {
 
 feature_names = ['年龄', '在职工龄', 'A2', 'A3', 'A4', 'A6', 'B4', 'B5', '工时分组', '生活满意度', '睡眠状况', '工作负担度']
 
+# 设置中文字体
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
 # Streamlit 用户界面
 st.title("职业紧张预测 app")
 
@@ -33,7 +38,7 @@ age = st.number_input("年龄：", min_value=1, max_value=120, value=50)
 service_years = st.number_input("在职工龄（年）：", min_value=0, max_value=40, value=5)
 
 # A2（性别）
-A2_options = {0: '女性', 1: '男性'}
+A2_options = {1: '女性', 0: '男性'}
 A2 = st.selectbox(
     "性别：",
     options=list(A2_options.keys()),
@@ -114,22 +119,40 @@ def predict():
 
         # 显示预测结果
         st.write(f"**预测类别：** {predicted_class}")
-        st.write(f"**预测概率：** {predicted_proba}")
+
+        # 将概率转换为小数并显示
+        decimal_probabilities = [f'{prob:.4f}' for prob in predicted_proba]
+        st.write(f"**预测概率：** {decimal_probabilities}")
 
         # 根据预测结果生成建议
         probability = predicted_proba[predicted_class] * 100
 
-        if predicted_class == 1:
+        if predicted_class == 4:
             advice = (
-                f"根据我们的模型，您有较高的职业紧张。"
+                f"根据我们的模型，您无职业紧张症状。"
                 f"模型预测该员工有职业紧张症状的概率为 {probability:.1f}%。"
-                "建议管理层关注该员工的工作状态，提供必要的支持和关怀。"
+                "请继续保持良好的工作和生活状态。"
+            )
+        elif predicted_class == 3:
+            advice = (
+                f"根据我们的模型，您有轻度职业紧张症状。"
+                f"模型预测该员工有职业紧张症状的概率为 {probability:.1f}%。"
+                "建议您适当调整工作节奏，关注自身身心健康。"
+            )
+        elif predicted_class == 2:
+            advice = (
+                f"根据我们的模型，您有中度职业紧张症状。"
+                f"模型预测该员工有职业紧张症状的概率为 {probability:.1f}%。"
+                "建议您寻求专业帮助，如心理咨询或与上级沟通调整工作安排。"
+            )
+        elif predicted_class == 1:
+            advice = (
+                f"根据我们的模型，您有重度职业紧张症状。"
+                f"模型预测该员工有职业紧张症状的概率为 {probability:.1f}%。"
+                "强烈建议您立即采取行动，如休假、寻求医疗支持或与管理层协商改善工作环境。"
             )
         else:
-            advice = (
-                f"根据我们的模型，您患有职业紧张可能性较低。"
-                "请继续保持良好的工作氛围，鼓励员工的积极性。"
-            )
+            advice = "预测结果出现未知情况。"
 
         st.write(advice)
 
@@ -152,15 +175,6 @@ def predict():
         except Exception as e:
             print(f"Error in force plot: {e}")
             # 如果 force plot 失败，尝试其他绘图方法
-            fonts = fm.findSystemFonts(fontpaths=None, fontext='ttf')
-            font_names = [fm.FontProperties(fname=fname).get_name() for fname in fonts]
-            if 'SimHei' in font_names:
-                plt.rcParams['font.sans-serif'] = ['SimHei']
-            elif 'Microsoft YaHei' in font_names:
-                plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
-            else:
-                plt.rcParams['font.sans-serif'] = [font_names[0]] if font_names else ['DejaVu Sans']
-            plt.rcParams['axes.unicode_minus'] = False
             shap.summary_plot(shap_values, data_df, show=False)
             plt.title('SHAP 值汇总图')
             plt.xlabel('特征')
